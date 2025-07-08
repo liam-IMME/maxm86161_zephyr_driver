@@ -76,6 +76,13 @@ static int maxm86161_sequence_check ( uint8_t value );
 //Function for delay after reset bit is set to 1
 static void maxm86161_soft_reset_delay( void );
 
+static int maxm86161_sample_fetch(const struct device *dev,
+                                  enum sensor_channel chan);
+static int maxm86161_channel_get(const struct device *dev,
+                                 enum sensor_channel chan,
+                                 struct sensor_value *val);
+
+
 //Function for letting I2C wait after status check
 //static void maxm86161_dev_i2c_delays(void);
 
@@ -91,14 +98,14 @@ static void maxm86161_soft_reset_delay( void );
  * @return
  *    sl_status_t error code
  ******************************************************************************/
-int maxm86161_init_device(maxm86161_device_config_t global_cfg)
+int maxm86161_init_device(const maxm86161_device_config_t *global_cfg)
 {
   int ret = 0;
   maxm86161_software_reset();
-  ret |= maxm86161_ppg_config(&global_cfg.ppg_cfg);
-  ret |= maxm86161_led_sequence_config(&global_cfg.ledsq_cfg);
-  ret |= maxm86161_interupt_control(&global_cfg.int_cfg);
-  maxm86161_led_pa_config(&global_cfg.ledpa_cfg);
+  ret |= maxm86161_ppg_config(&global_cfg->ppg_cfg);
+  ret |= maxm86161_led_sequence_config(&global_cfg->ledsq_cfg);
+  ret |= maxm86161_interrupt_control(&global_cfg->int_cfg);
+  maxm86161_led_pa_config(&global_cfg->ledpa_cfg);
   // interrupt level setup should be happened after above configuration
   maxm86161_set_int_level(global_cfg.int_level);
   maxm86161_i2c_write_to_register(MAXM86161_REG_FIFO_CONFIG2, MAXM86161_FIFO_CFG_2_FULL_TYPE_RPT | MAXM86161_FIFO_CFG_2_FIFO_READ_DATA_CLR);
@@ -200,7 +207,7 @@ void maxm86161_set_int_level(uint8_t level)
  * @return
  *    sl_status_t error code
  ******************************************************************************/
-int maxm86161_ppg_config(maxm86161_ppg_cfg_t *ppg_cfg)
+int maxm86161_ppg_config(const maxm86161_ppg_cfg_t *ppg_cfg)
 {
     /* validate each field; return -EINVAL on any failure */
   if (maxm86161_bool_check(ppg_cfg->alc) < 0 ||
@@ -285,7 +292,7 @@ void maxm86161_led_pa_config (maxm86161_ledpa_t *ledpa )
  *    sl_status_t error code
  *
  ******************************************************************************/
-int maxm86161_led_range_config(maxm86161_led_range_curr_t *led_range)
+int maxm86161_led_range_config(const maxm86161_led_range_curr_t *led_range)
 {
     int ret;
 

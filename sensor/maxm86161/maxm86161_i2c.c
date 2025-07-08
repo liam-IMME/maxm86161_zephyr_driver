@@ -5,7 +5,8 @@
  */
 
 #include <zephyr/device.h>
-//#include <zephyr/drivers/i2c.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/i2c.h>
 #include <zephyr/kernel.h>
 #include "maxm86161.h"
 
