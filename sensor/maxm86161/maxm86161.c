@@ -41,6 +41,8 @@
 
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/i2c.h>
+#include <zephyr/kernel.h>
+#include<errno.h>
 
 #include "maxm86161.h"
 
@@ -51,25 +53,25 @@
 // --------------------- PRIVATE FUNCTION DECLARATIONS -----------------------
 
 //Function for checking data if it's 1 or 0
-static sl_status_t maxm86161_bool_check ( uint8_t value );
+static int maxm86161_bool_check ( uint8_t value );
 
 //Function for tint data validation check
-static sl_status_t maxm86161_ppg_tint_check ( uint8_t value );
+static int maxm86161_ppg_tint_check ( uint8_t value );
 
 //Function for led range data validation check
-static sl_status_t maxm86161_led_range_check ( uint8_t value );
+static int maxm86161_led_range_check ( uint8_t value );
 
 //Function for sample rate data validation check
-static sl_status_t maxm86161_smp_rate_check ( uint8_t value );
+static int maxm86161_smp_rate_check ( uint8_t value );
 
 //Function for smp avg freq data validation check
-static sl_status_t maxm86161_smo_freq_check ( uint8_t value );
+static int maxm86161_smo_freq_check ( uint8_t value );
 
 //Function for led range current data validation check
-static sl_status_t maxm86161_led_range_curr_check ( uint8_t value );
+static int maxm86161_led_range_curr_check ( uint8_t value );
 
 //Function for squence data validation check
-static sl_status_t maxm86161_sequence_check ( uint8_t value );
+static int maxm86161_sequence_check ( uint8_t value );
 
 //Function for delay after reset bit is set to 1
 static void maxm86161_soft_reset_delay( void );
@@ -89,9 +91,9 @@ static void maxm86161_soft_reset_delay( void );
  * @return
  *    sl_status_t error code
  ******************************************************************************/
-sl_status_t maxm86161_init_device(maxm86161_device_config_t global_cfg)
+int maxm86161_init_device(maxm86161_device_config_t global_cfg)
 {
-  sl_status_t ret = SL_STATUS_OK;
+  int ret = 0;
   maxm86161_software_reset();
   ret |= maxm86161_ppg_config(&global_cfg.ppg_cfg);
   ret |= maxm86161_led_sequence_config(&global_cfg.ledsq_cfg);
@@ -198,17 +200,17 @@ void maxm86161_set_int_level(uint8_t level)
  * @return
  *    sl_status_t error code
  ******************************************************************************/
-sl_status_t maxm86161_ppg_config(maxm86161_ppg_cfg_t *ppg_cfg)
+int maxm86161_ppg_config(maxm86161_ppg_cfg_t *ppg_cfg)
 {
-  if ((maxm86161_bool_check (ppg_cfg->alc) &
-      maxm86161_bool_check (ppg_cfg->offset) &
-      maxm86161_ppg_tint_check(ppg_cfg->ppg_tint) &
-      maxm86161_led_range_check(ppg_cfg->adc_range) &
-      maxm86161_smp_rate_check(ppg_cfg->smp_rate) &
-      maxm86161_smo_freq_check(ppg_cfg->smp_freq)) != SL_STATUS_OK )
-    {
-      return SL_STATUS_FAIL;
-    }
+    /* validate each field; return -EINVAL on any failure */
+  if (maxm86161_bool_check(ppg_cfg->alc) < 0 ||
+      maxm86161_bool_check(ppg_cfg->offset) < 0 ||
+      maxm86161_ppg_tint_check(ppg_cfg->ppg_tint) < 0 ||
+      maxm86161_led_range_check(ppg_cfg->adc_range) < 0 ||
+      maxm86161_smp_rate_check(ppg_cfg->smp_rate) < 0 ||
+      maxm86161_smo_freq_check(ppg_cfg->smp_freq) < 0) {
+    return -EINVAL;
+      }
 
   maxm86161_i2c_write_to_register( MAXM86161_REG_PPG_CONFIG1, (
                           ( ppg_cfg->alc << MAXM86161_PPG_CFG_ALC ) |
@@ -219,7 +221,7 @@ sl_status_t maxm86161_ppg_config(maxm86161_ppg_cfg_t *ppg_cfg)
   maxm86161_i2c_write_to_register( MAXM86161_REG_PPG_CONFIG2, (
                           ( ppg_cfg->smp_rate << MAXM86161_PPG_CFG_SMP_RATE ) |
                           ( ppg_cfg->smp_freq << MAXM86161_PPG_CFG_SMP_AVG ) ) );
-  return SL_STATUS_OK;
+  return 0;
 }
 
 
@@ -236,7 +238,7 @@ sl_status_t maxm86161_ppg_config(maxm86161_ppg_cfg_t *ppg_cfg)
  * @return
  *    sl_status_t error code
  ******************************************************************************/
-sl_status_t maxm86161_led_pa_config_specific(uint8_t ledx, uint8_t value)
+int maxm86161_led_pa_config_specific(uint8_t ledx, uint8_t value)
 {
 
   switch (ledx){
@@ -250,9 +252,9 @@ sl_status_t maxm86161_led_pa_config_specific(uint8_t ledx, uint8_t value)
             maxm86161_i2c_write_to_register(MAXM86161_REG_LED3_PA, value);
             break;
           default :
-            return SL_STATUS_FAIL;
+            return -EINVAL;
   }
-  return SL_STATUS_OK;
+  return 0;
 }
 
 /***************************************************************************//**
@@ -283,20 +285,32 @@ void maxm86161_led_pa_config (maxm86161_ledpa_t *ledpa )
  *    sl_status_t error code
  *
  ******************************************************************************/
-sl_status_t maxm86161_led_range_config(maxm86161_led_range_curr_t *led_range)
+int maxm86161_led_range_config(maxm86161_led_range_curr_t *led_range)
 {
-  if ((maxm86161_led_range_curr_check(led_range->green) &
-      maxm86161_led_range_curr_check(led_range->ir) &
-      maxm86161_led_range_curr_check(led_range->red)) != SL_STATUS_OK ){
-          return SL_STATUS_FAIL;
-  }
+    int ret;
 
-  maxm86161_i2c_write_to_register(MAXM86161_REG_LED_RANGE1,(
-                          (led_range->green << MAXM86161_LED_RANGE_SHIFT_GREEN) |
-                          (led_range->ir << MAXM86161_LED_RANGE_SHIFT_IR) |
-                          (led_range->red << MAXM86161_LED_RANGE_SHIFT_RED)));
+    /* Validate each field, return –EINVAL on any bad value */
+    ret = maxm86161_led_range_curr_check(led_range->green);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_led_range_curr_check(led_range->ir);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_led_range_curr_check(led_range->red);
+    if (ret < 0) {
+        return -EINVAL;
+    }
 
-  return SL_STATUS_OK;
+    /* Build the packed register value and write it */
+    ret = maxm86161_i2c_write_to_register(
+        MAXM86161_REG_LED_RANGE1,
+        (led_range->green << MAXM86161_LED_RANGE_SHIFT_GREEN) |
+        (led_range->ir    << MAXM86161_LED_RANGE_SHIFT_IR)    |
+        (led_range->red   << MAXM86161_LED_RANGE_SHIFT_RED)
+    );
+    return ret;
 }
 
 /***************************************************************************//**
@@ -311,27 +325,60 @@ sl_status_t maxm86161_led_range_config(maxm86161_led_range_curr_t *led_range)
  * @return
  *    sl_status_t error code
  ******************************************************************************/
-sl_status_t maxm86161_led_sequence_config(maxm86161_ledsq_cfg_t *ledsq)
+int maxm86161_led_sequence_config(const maxm86161_ledsq_cfg_t *ledsq)
 {
-    if ((maxm86161_sequence_check(ledsq->ledsq1) &
-          maxm86161_sequence_check(ledsq->ledsq2) &
-          maxm86161_sequence_check(ledsq->ledsq3) &
-          maxm86161_sequence_check(ledsq->ledsq4) &
-          maxm86161_sequence_check(ledsq->ledsq5) &
-          maxm86161_sequence_check(ledsq->ledsq6)) != SL_STATUS_OK ){
-          return SL_STATUS_FAIL;
+    int ret;
+
+    /* Validate each sequence entry */
+    ret = maxm86161_sequence_check(ledsq->ledsq1);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_sequence_check(ledsq->ledsq2);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_sequence_check(ledsq->ledsq3);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_sequence_check(ledsq->ledsq4);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_sequence_check(ledsq->ledsq5);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_sequence_check(ledsq->ledsq6);
+    if (ret < 0) {
+        return -EINVAL;
     }
 
-    maxm86161_i2c_write_to_register(MAXM86161_REG_LED_SEQ1,
-                                ((ledsq->ledsq2 << MAXM86161_LEDSQ_SHIFT) | (ledsq->ledsq1)));
+    /* Pack and write each pair of sequence registers */
+    ret = maxm86161_i2c_write_to_register(
+        MAXM86161_REG_LED_SEQ1,
+        (ledsq->ledsq2 << MAXM86161_LEDSQ_SHIFT) |
+        (ledsq->ledsq1)
+    );
+    if (ret < 0) {
+        return ret;
+    }
 
-    maxm86161_i2c_write_to_register(MAXM86161_REG_LED_SEQ2,
-                                ((ledsq->ledsq4 << MAXM86161_LEDSQ_SHIFT) | (ledsq->ledsq3)));
+    ret = maxm86161_i2c_write_to_register(
+        MAXM86161_REG_LED_SEQ2,
+        (ledsq->ledsq4 << MAXM86161_LEDSQ_SHIFT) |
+        (ledsq->ledsq3)
+    );
+    if (ret < 0) {
+        return ret;
+    }
 
-    maxm86161_i2c_write_to_register(MAXM86161_REG_LED_SEQ3,
-                                ((ledsq->ledsq6 << MAXM86161_LEDSQ_SHIFT)|(ledsq->ledsq5)));
-
-    return SL_STATUS_OK;
+    return maxm86161_i2c_write_to_register(
+        MAXM86161_REG_LED_SEQ3,
+        (ledsq->ledsq6 << MAXM86161_LEDSQ_SHIFT) |
+        (ledsq->ledsq5)
+    );
 }
 
 /***************************************************************************//**
@@ -345,30 +392,59 @@ sl_status_t maxm86161_led_sequence_config(maxm86161_ledsq_cfg_t *ledsq)
  *    sl_status_t error code
  *
  ******************************************************************************/
-sl_status_t maxm86161_interupt_control(maxm86161_int_t *int_ctrl)
+int maxm86161_interrupt_control(const maxm86161_int_t *int_ctrl)
 {
-  if ((maxm86161_bool_check(int_ctrl->sha) &
-        maxm86161_bool_check(int_ctrl->proxy) &
-        maxm86161_bool_check(int_ctrl->led_compliant) &
-        maxm86161_bool_check(int_ctrl->full_fifo) &
-        maxm86161_bool_check(int_ctrl->data_rdy) &
-        maxm86161_bool_check(int_ctrl->alc_ovf) &
-        maxm86161_bool_check(int_ctrl->die_temp)) != SL_STATUS_OK){
-      return SL_STATUS_FAIL;
-  }
+    int ret;
 
-  maxm86161_i2c_write_to_register(MAXM86161_REG_IRQ_ENABLE1, (
-                          (int_ctrl->full_fifo << MAXM86161_INT_SHIFT_FULL) |
-                          (int_ctrl->data_rdy << MAXM86161_INT_SHIFT_DATA_RDY) |
-                          (int_ctrl->alc_ovf << MAXM86161_INT_SHIFT_ALC_OVF) |
-                          (int_ctrl->proxy << MAXM86161_INT_SHIFT_PROXY) |
-                          (int_ctrl->led_compliant << MAXM86161_INT_SHIFT_LED_COMPLIANT) |
-                          (int_ctrl->die_temp << MAXM86161_INT_SHIFT_DIE_TEMEP)));
+    /* Validate each interrupt flag */
+    ret = maxm86161_bool_check(int_ctrl->sha);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_bool_check(int_ctrl->proxy);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_bool_check(int_ctrl->led_compliant);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_bool_check(int_ctrl->full_fifo);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_bool_check(int_ctrl->data_rdy);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_bool_check(int_ctrl->alc_ovf);
+    if (ret < 0) {
+        return -EINVAL;
+    }
+    ret = maxm86161_bool_check(int_ctrl->die_temp);
+    if (ret < 0) {
+        return -EINVAL;
+    }
 
-  maxm86161_i2c_write_to_register(MAXM86161_REG_IRQ_ENABLE2, (
-                          (int_ctrl->sha << MAXM86161_INT_SHIFT_SHA)));
+    /* Build and write IRQ_ENABLE1 */
+    ret = maxm86161_i2c_write_to_register(
+        MAXM86161_REG_IRQ_ENABLE1,
+        (int_ctrl->full_fifo     << MAXM86161_INT_SHIFT_FULL)         |
+        (int_ctrl->data_rdy      << MAXM86161_INT_SHIFT_DATA_RDY)    |
+        (int_ctrl->alc_ovf       << MAXM86161_INT_SHIFT_ALC_OVF)     |
+        (int_ctrl->proxy         << MAXM86161_INT_SHIFT_PROXY)       |
+        (int_ctrl->led_compliant << MAXM86161_INT_SHIFT_LED_COMPLIANT)|
+        (int_ctrl->die_temp      << MAXM86161_INT_SHIFT_DIE_TEMEP)
+    );
+    if (ret < 0) {
+        return ret;
+    }
 
-  return SL_STATUS_OK;
+    /* Write IRQ_ENABLE2 (SHA interrupt only) */
+    return maxm86161_i2c_write_to_register(
+        MAXM86161_REG_IRQ_ENABLE2,
+        (int_ctrl->sha << MAXM86161_INT_SHIFT_SHA)
+    );
 }
 
 /***************************************************************************//**
@@ -487,82 +563,82 @@ bool maxm86161_read_samples_in_fifo(maxm86161_ppg_sample_t *sample)
 /* Need to delay to wait device ready after reset */
 static void maxm86161_soft_reset_delay(void)
 {
-  sl_udelay_wait(1000);//microsecond
+  k_busy_wait(1000);//microsecond
 }
 
-static sl_status_t maxm86161_bool_check (uint8_t value)
+static int maxm86161_bool_check(uint8_t value)
 {
-    switch (value){
-      case 0x00:
-      case 0x01:
-          return SL_STATUS_OK;
-      default:
-          return SL_STATUS_FAIL;
+    switch (value) {
+    case 0x00:
+    case 0x01:
+        return 0;
+    default:
+        return -EINVAL;
     }
 }
 
-/* check if ppg int value is valid */
-static sl_status_t maxm86161_ppg_tint_check(uint8_t value)
+/** @brief Validate PPG integration time. */
+static int maxm86161_ppg_tint_check(uint8_t value)
 {
-    switch (value){
-      case MAXM86161_PPG_CFG_TINT_14p8_US:
-      case MAXM86161_PPG_CFG_TINT_29p4_US:
-      case MAXM86161_PPG_CFG_TINT_58p7_US:
-      case MAXM86161_PPG_CFG_TINT_117p3_US:
-        return SL_STATUS_OK;
-      default:
-        return SL_STATUS_FAIL;
+    switch (value) {
+    case MAXM86161_PPG_CFG_TINT_14p8_US:
+    case MAXM86161_PPG_CFG_TINT_29p4_US:
+    case MAXM86161_PPG_CFG_TINT_58p7_US:
+    case MAXM86161_PPG_CFG_TINT_117p3_US:
+        return 0;
+    default:
+        return -EINVAL;
     }
 }
 
-/* check if led range setting value is valid */
-static sl_status_t maxm86161_led_range_check(uint8_t value)
+/** @brief Validate LED ADC range. */
+static int maxm86161_led_range_check(uint8_t value)
 {
-    switch (value){
-      case MAXM86161_PPG_CFG_LED_RANGE_4k:
-      case MAXM86161_PPG_CFG_LED_RANGE_8k:
-      case MAXM86161_PPG_CFG_LED_RANGE_16k:
-      case MAXM86161_PPG_CFG_LED_RANGE_32k:
-          return SL_STATUS_OK;
-      default:
-          return SL_STATUS_FAIL;
+    switch (value) {
+    case MAXM86161_PPG_CFG_LED_RANGE_4k:
+    case MAXM86161_PPG_CFG_LED_RANGE_8k:
+    case MAXM86161_PPG_CFG_LED_RANGE_16k:
+    case MAXM86161_PPG_CFG_LED_RANGE_32k:
+        return 0;
+    default:
+        return -EINVAL;
     }
 }
 
-/* check if sample rate setting value is valid */
-static sl_status_t maxm86161_smp_rate_check(uint8_t value)
+/** @brief Validate sample rate setting. */
+static int maxm86161_smp_rate_check(uint8_t value)
 {
-    switch (value){
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_24sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_50sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_84sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_99sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_199sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_399sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P2_24sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P2_50sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P2_84sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P2_99sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_8sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_16sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_32sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_64sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_128sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_256sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_512sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_1024sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_2048sps:
-      case MAXM86161_PPG_CFG_SMP_RATE_P1_4096sps:
-          return SL_STATUS_OK;
-      default:
-          return SL_STATUS_FAIL;
+    switch (value) {
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_24sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_50sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_84sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_99sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_199sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_399sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P2_24sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P2_50sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P2_84sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P2_99sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_8sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_16sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_32sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_64sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_128sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_256sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_512sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_1024sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_2048sps:
+    case MAXM86161_PPG_CFG_SMP_RATE_P1_4096sps:
+        return 0;
+    default:
+        return -EINVAL;
     }
 }
 
-/* check if led range setting value is valid */
-static sl_status_t maxm86161_smo_freq_check(uint8_t value)
+/** @brief Validate sample averaging (smooth filter) frequency. */
+static int maxm86161_smo_freq_check(uint8_t value)
 {
-  switch (value){
+    switch (value) {
     case MAXM86161_PPG_CFG_SMP_AVG_1:
     case MAXM86161_PPG_CFG_SMP_AVG_2:
     case MAXM86161_PPG_CFG_SMP_AVG_4:
@@ -571,42 +647,41 @@ static sl_status_t maxm86161_smo_freq_check(uint8_t value)
     case MAXM86161_PPG_CFG_SMP_AVG_32:
     case MAXM86161_PPG_CFG_SMP_AVG_64:
     case MAXM86161_PPG_CFG_SMP_AVG_128:
-        return SL_STATUS_OK;
+        return 0;
     default:
-        return SL_STATUS_FAIL;
+        return -EINVAL;
     }
 }
 
-/* check if led range current setting value is valid */
-static sl_status_t maxm86161_led_range_curr_check(uint8_t value)
+/** @brief Validate LED current-range setting. */
+static int maxm86161_led_range_curr_check(uint8_t value)
 {
-    switch ( value ){
-      case MAXM86161_LED_RANGE_CURRENT_31_MA:
-      case MAXM86161_LED_RANGE_CURRENT_62_MA:
-      case MAXM86161_LED_RANGE_CURRENT_93_MA:
-      case MAXM86161_LED_RANGE_CURRENT_124_MA:
-          return SL_STATUS_OK;
-      default:
-          return SL_STATUS_FAIL;
-      }
-}
-
-/* check if sequence value is valid */
-static sl_status_t maxm86161_sequence_check(uint8_t value)
-{
-    switch (value){
-      case MAXM86161_LEDSQ_GREEN:
-      case MAXM86161_LEDSQ_IR:
-      case MAXM86161_LEDSQ_RED:
-      case MAXM86161_LEDSQ_PILOT_LED1:
-      case MAXM86161_LEDSQ_DIRECT_AMBIENT:
-      case MAXM86161_LEDSQ_OFF:
-          return SL_STATUS_OK;
-      default:
-          return SL_STATUS_FAIL;
+    switch (value) {
+    case MAXM86161_LED_RANGE_CURRENT_31_MA:
+    case MAXM86161_LED_RANGE_CURRENT_62_MA:
+    case MAXM86161_LED_RANGE_CURRENT_93_MA:
+    case MAXM86161_LED_RANGE_CURRENT_124_MA:
+        return 0;
+    default:
+        return -EINVAL;
     }
 }
 
+/** @brief Validate LED-sequence code. */
+static int maxm86161_sequence_check(uint8_t value)
+{
+    switch (value) {
+    case MAXM86161_LEDSQ_GREEN:
+    case MAXM86161_LEDSQ_IR:
+    case MAXM86161_LEDSQ_RED:
+    case MAXM86161_LEDSQ_PILOT_LED1:
+    case MAXM86161_LEDSQ_DIRECT_AMBIENT:
+    case MAXM86161_LEDSQ_OFF:
+        return 0;
+    default:
+        return -EINVAL;
+    }
+}
 static const struct sensor_driver_api maxm86161_api = 
 {
     .sample_fetch = maxm86161_sample_fetch,

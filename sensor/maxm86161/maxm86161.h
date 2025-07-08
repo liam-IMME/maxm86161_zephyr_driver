@@ -49,6 +49,7 @@
  ******************************************************************************/
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,11 +58,11 @@ extern "C" {
 /*******************************************************************************
  *******************************   TYPES   ***********************************
  ******************************************************************************/
-typedef void* HANDLE;
+// typedef void* HANDLE;
 
-#include "maxm86161_i2c.h"
-#include "sl_status.h"
-#include "sl_udelay.h"
+// #include "maxm86161_i2c.h"
+// #include "sl_status.h"
+// #include "sl_udelay.h"
 
 
 /*******************************************************************************
@@ -329,18 +330,33 @@ typedef struct maxm86161_device_config
 /*******************************************************************************
  ***************   Functions supplied by maxm86161drv.c   ******************
  ******************************************************************************/
+// void maxm86161_get_irq_status(maxm86161_int_t *int_status);
+// void maxm86161_flush_fifo();
+// void maxm86161_led_pa_config(maxm86161_ledpa_t *ledpa);
+// void maxm86161_set_int_level(uint8_t level);
+// void maxm86161_software_reset();
+// void maxm86161_shutdown_device(bool turn_off);
+// sl_status_t maxm86161_led_pa_config_specific(uint8_t ledx, uint8_t value);
+// sl_status_t maxm86161_led_range_config(maxm86161_led_range_curr_t *led_range);
+// sl_status_t maxm86161_led_sequence_config(maxm86161_ledsq_cfg_t *ledsq);
+// sl_status_t maxm86161_interupt_control(maxm86161_int_t *int_ctrl);
+// sl_status_t maxm86161_ppg_config(maxm86161_ppg_cfg_t *ppg_cfg);
+// sl_status_t maxm86161_init_device(maxm86161_device_config_t global_cfg);
+//////////////////////////////////////////////////////////////////////////////
+//Replace with Zephyr functions
 void maxm86161_get_irq_status(maxm86161_int_t *int_status);
-void maxm86161_flush_fifo();
-void maxm86161_led_pa_config(maxm86161_ledpa_t *ledpa);
+void maxm86161_flush_fifo(void);
+void maxm86161_led_pa_config(const maxm86161_ledpa_t *ledpa);
 void maxm86161_set_int_level(uint8_t level);
-void maxm86161_software_reset();
+void maxm86161_software_reset(void);
 void maxm86161_shutdown_device(bool turn_off);
-sl_status_t maxm86161_led_pa_config_specific(uint8_t ledx, uint8_t value);
-sl_status_t maxm86161_led_range_config(maxm86161_led_range_curr_t *led_range);
-sl_status_t maxm86161_led_sequence_config(maxm86161_ledsq_cfg_t *ledsq);
-sl_status_t maxm86161_interupt_control(maxm86161_int_t *int_ctrl);
-sl_status_t maxm86161_ppg_config(maxm86161_ppg_cfg_t *ppg_cfg);
-sl_status_t maxm86161_init_device(maxm86161_device_config_t global_cfg);
+/* All of these now return standard 'int' error-codes (0 == OK, <0 == -EINVAL, -EIO, etc.) */
+int maxm86161_led_pa_config_specific(uint8_t ledx, uint8_t value);
+int maxm86161_led_range_config(const maxm86161_led_range_curr_t *led_range);
+int maxm86161_led_sequence_config(const maxm86161_ledsq_cfg_t *ledsq);
+int maxm86161_interrupt_control(const maxm86161_int_t *int_ctrl);
+int maxm86161_ppg_config(const maxm86161_ppg_cfg_t *ppg_cfg);
+int maxm86161_init_device(const maxm86161_device_config_t *global_cfg);
 
 /*******************************************************************************
  ************************** Maxm86161 I2C Registers *******************************
