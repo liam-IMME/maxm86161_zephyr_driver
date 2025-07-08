@@ -42,6 +42,8 @@
 #include <zephyr/drivers/sensor.h>
 #include <zephyr/drivers/i2c.h>
 #include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/devicetree.h>
 #include<errno.h>
 
 #include "maxm86161.h"
@@ -86,6 +88,23 @@ static int maxm86161_channel_get(const struct device *dev,
 //Function for letting I2C wait after status check
 //static void maxm86161_dev_i2c_delays(void);
 
+
+static int maxm86161_sample_fetch(const struct device *dev,
+                                  enum sensor_channel chan)
+{
+    /* TODO: read raw data from FIFO into driver state */
+    return 0;
+}
+
+static int maxm86161_channel_get(const struct device *dev,
+                                 enum sensor_channel chan,
+                                 struct sensor_value *val)
+{
+    /* TODO: convert driver state into struct sensor_value */
+    return 0;
+}
+
+
 // --------------------- Device configuration functions -----------------------
 
 /***************************************************************************//**
@@ -107,7 +126,7 @@ int maxm86161_init_device(const maxm86161_device_config_t *global_cfg)
   ret |= maxm86161_interrupt_control(&global_cfg->int_cfg);
   maxm86161_led_pa_config(&global_cfg->ledpa_cfg);
   // interrupt level setup should be happened after above configuration
-  maxm86161_set_int_level(global_cfg.int_level);
+  maxm86161_set_int_level(global_cfg->int_level);
   maxm86161_i2c_write_to_register(MAXM86161_REG_FIFO_CONFIG2, MAXM86161_FIFO_CFG_2_FULL_TYPE_RPT | MAXM86161_FIFO_CFG_2_FIFO_READ_DATA_CLR);
   // clear FIFO, don't know if it is necessary in this case
   maxm86161_flush_fifo();
@@ -274,7 +293,7 @@ int maxm86161_led_pa_config_specific(uint8_t ledx, uint8_t value)
  * @return
  *    None
  ******************************************************************************/
-void maxm86161_led_pa_config (maxm86161_ledpa_t *ledpa )
+void maxm86161_led_pa_config (const maxm86161_ledpa_t *ledpa )
 {
   maxm86161_i2c_write_to_register( MAXM86161_REG_LED1_PA, ledpa->green );
   maxm86161_i2c_write_to_register( MAXM86161_REG_LED2_PA, ledpa->ir );
