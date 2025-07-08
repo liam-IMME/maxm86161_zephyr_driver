@@ -1,0 +1,6 @@
+name: MAXM8161 PPG sensor
+build:
+  cmake: .
+  kconfig: Kconfig
+  settings:
+    dts_root: .

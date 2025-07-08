@@ -1,0 +1,1 @@
+add_subdirectory_ifdef(CONFIG_MAXM86161 maxm86161)

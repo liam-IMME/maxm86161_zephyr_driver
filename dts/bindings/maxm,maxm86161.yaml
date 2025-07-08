@@ -1,0 +1,5 @@
+description: MAXM86161 I2C Device
+
+compatible: "maxim,maxm86161"
+
+include: [sensor-device.yaml, i2c-device.yaml]
