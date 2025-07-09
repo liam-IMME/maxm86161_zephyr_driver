@@ -1,7 +1,7 @@
 /* maxm86161_i2c.c
  *
  * Zephyr I²C transport layer for the MAXM86161 PPG sensor.
- * Pulls bus info from DT_INST(0, maxim_maxm86161).
+ * Now uses device instance passed from driver.
  */
 
 #include <zephyr/device.h>
@@ -10,16 +10,31 @@
 #include <zephyr/kernel.h>
 #include "maxm86161.h"
 
-/* Instantiate the I²C spec from devicetree (instance 0) */
-static const struct i2c_dt_spec maxm86161_i2c = I2C_DT_SPEC_INST_GET(0);
+/* Global device pointer - set during driver initialization */
+static const struct device *maxm86161_dev = NULL;
+
+void maxm86161_set_device(const struct device *dev)
+{
+    maxm86161_dev = dev;
+}
+
+static const struct i2c_dt_spec *get_i2c_spec(void)
+{
+    if (!maxm86161_dev) {
+        return NULL;
+    }
+    const struct maxm86161_config *cfg = maxm86161_dev->config;
+    return &cfg->i2c;
+}
 
 /* Write one byte to a register */
 int32_t maxm86161_i2c_write_to_register(uint8_t reg, uint8_t val)
 {
-    if (!device_is_ready(maxm86161_i2c.bus)) {
+    const struct i2c_dt_spec *spec = get_i2c_spec();
+    if (!spec || !device_is_ready(spec->bus)) {
         return -ENODEV;
     }
-    return i2c_reg_write_byte_dt(&maxm86161_i2c, reg, val);
+    return i2c_reg_write_byte_dt(spec, reg, val);
 }
 
 /* Read one byte from a register */
@@ -27,28 +42,31 @@ int32_t maxm86161_i2c_read_from_register(uint8_t reg)
 {
     uint8_t val;
     int ret;
+    const struct i2c_dt_spec *spec = get_i2c_spec();
 
-    if (!device_is_ready(maxm86161_i2c.bus)) {
+    if (!spec || !device_is_ready(spec->bus)) {
         return -ENODEV;
     }
-    ret = i2c_reg_read_byte_dt(&maxm86161_i2c, reg, &val);
+    ret = i2c_reg_read_byte_dt(spec, reg, &val);
     return ret < 0 ? ret : val;
 }
 
-/* Burst-write N bytes starting at register “reg” */
+/* Burst-write N bytes starting at register "reg" */
 int32_t maxm86161_i2c_block_write(uint8_t reg, uint8_t len, uint8_t const *buf)
 {
-    if (!device_is_ready(maxm86161_i2c.bus)) {
+    const struct i2c_dt_spec *spec = get_i2c_spec();
+    if (!spec || !device_is_ready(spec->bus)) {
         return -ENODEV;
     }
-    return i2c_burst_write_dt(&maxm86161_i2c, reg, buf, len);
+    return i2c_burst_write_dt(spec, reg, buf, len);
 }
 
-/* Burst-read N bytes starting at register “reg” */
+/* Burst-read N bytes starting at register "reg" */
 int32_t maxm86161_i2c_block_read(uint8_t reg, uint16_t len, uint8_t *buf)
 {
-    if (!device_is_ready(maxm86161_i2c.bus)) {
+    const struct i2c_dt_spec *spec = get_i2c_spec();
+    if (!spec || !device_is_ready(spec->bus)) {
         return -ENODEV;
     }
-    return i2c_burst_read_dt(&maxm86161_i2c, reg, buf, len);
+    return i2c_burst_read_dt(spec, reg, buf, len);
 }

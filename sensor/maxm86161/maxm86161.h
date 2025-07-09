@@ -50,6 +50,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/i2c.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -442,7 +444,28 @@ int maxm86161_init_device(const maxm86161_device_config_t *global_cfg);
  ******************************************************************************/
 bool maxm86161_read_samples_in_fifo(maxm86161_ppg_sample_t *sample);
 
+// Add minimal struct definitions for Zephyr driver model
+struct maxm86161_config {
+    struct i2c_dt_spec i2c;
+};
+
+struct maxm86161_data {
+    // Add fields as needed for driver state
+    uint32_t last_sample_time;
+    bool initialized;
+};
+
+// Forward declaration for driver init function
+int maxm86161_driver_init(const struct device *dev);
+
+// I2C transport layer functions
+void maxm86161_set_device(const struct device *dev);
+
+#ifdef __cplusplus
+}
 #endif
+
+#endif /* MAXM86161_H_ */
 
 
 

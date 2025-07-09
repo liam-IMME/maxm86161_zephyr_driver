@@ -708,6 +708,30 @@ static int maxm86161_sequence_check(uint8_t value)
         return -EINVAL;
     }
 }
+void maxm86161_set_device(const struct device *dev);
+
+int maxm86161_driver_init(const struct device *dev)
+{
+    const struct maxm86161_config *cfg = dev->config;
+    struct maxm86161_data *data = dev->data;
+    
+    /* Set the device reference for I2C operations */
+    maxm86161_set_device(dev);
+    
+    /* Check if I2C bus is ready */
+    if (!device_is_ready(cfg->i2c.bus)) {
+        return -ENODEV;
+    }
+    
+    /* Initialize driver data */
+    data->initialized = false;
+    data->last_sample_time = 0;
+    
+    /* TODO: Add actual hardware initialization here */
+    
+    data->initialized = true;
+    return 0;
+}
 static const struct sensor_driver_api maxm86161_api = 
 {
     .sample_fetch = maxm86161_sample_fetch,
