@@ -52,6 +52,43 @@
 // #include <maxm86161_config.h>
 // #include <sl_udelay.h>
 
+
+static const maxm86161_device_config_t maxm86161_basic_cfg = {
+    .ppg_cfg = {
+        .alc = 0,            // Ambient light cancellation off
+        .offset = 0,         // Offset cancellation off
+        .ppg_tint = MAXM86161_PPG_CFG_TINT_58p7_US, // Integration time (choose as needed)
+        .adc_range = MAXM86161_PPG_CFG_LED_RANGE_16k, // ADC range (choose as needed)
+        .smp_rate = MAXM86161_PPG_CFG_SMP_RATE_P1_99sps, // 100 samples/sec
+        .smp_freq = MAXM86161_PPG_CFG_SMP_AVG_1,     // No averaging
+    },
+    .ledsq_cfg = {
+        .ledsq1 = MAXM86161_LEDSQ_GREEN, // Slot 1: Green LED
+        .ledsq2 = MAXM86161_LEDSQ_IR,    // Slot 2: IR LED
+        .ledsq3 = MAXM86161_LEDSQ_RED,   // Slot 3: Red LED
+        .ledsq4 = MAXM86161_LEDSQ_OFF,   // Remaining slots off
+        .ledsq5 = MAXM86161_LEDSQ_OFF,
+        .ledsq6 = MAXM86161_LEDSQ_OFF,
+    },
+    .int_cfg = {
+        .sha = 0,
+        .proxy = 0,
+        .led_compliant = 0,
+        .full_fifo = 0,
+        .data_rdy = 0,
+        .alc_ovf = 0,
+        .die_temp = 0,
+    },
+    .ledpa_cfg = {
+        .green = 0x1F, // Example: 5mA (set as needed)
+        .ir    = 0x1F,
+        .red   = 0x1F,
+    },
+    .int_level = 1, // FIFO interrupt threshold (not used, but must be set)
+};
+
+
+
 // --------------------- PRIVATE FUNCTION DECLARATIONS -----------------------
 
 //Function for checking data if it's 1 or 0
@@ -88,20 +125,34 @@ static int maxm86161_channel_get(const struct device *dev,
 //Function for letting I2C wait after status check
 //static void maxm86161_dev_i2c_delays(void);
 
+maxm86161_ppg_sample_t latest_sample;
 
-static int maxm86161_sample_fetch(const struct device *dev,
-                                  enum sensor_channel chan)
+static int maxm86161_sample_fetch(const struct device *dev, enum sensor_channel chan)
 {
-    /* TODO: read raw data from FIFO into driver state */
+    struct maxm86161_data *data = dev->data;
+    
+
+    // Read samples from FIFO into the sample structure
+    if (!maxm86161_read_samples_in_fifo(&latest_sample)) {
+        return -ENODATA;
+    }
+
     return 0;
 }
 
-static int maxm86161_channel_get(const struct device *dev,
-                                 enum sensor_channel chan,
-                                 struct sensor_value *val)
+static int maxm86161_channel_get(const struct device *dev, enum sensor_channel chan, struct sensor_value *val)
 {
-    /* TODO: convert driver state into struct sensor_value */
-    return 0;
+    struct maxm86161_data *data = dev->data;
+
+    switch (chan) {
+    case SENSOR_CHAN_LIGHT: // Or use custom channels if you define them
+        val[0].val1 = latest_sample.ppg1;
+        val[1].val1 = latest_sample.ppg2;
+        val[2].val1 = latest_sample.ppg3;
+        return 0;
+    default:
+        return -ENOTSUP;
+    }
 }
 
 
@@ -714,6 +765,8 @@ int maxm86161_driver_init(const struct device *dev)
 {
     const struct maxm86161_config *cfg = dev->config;
     struct maxm86161_data *data = dev->data;
+    int ret;
+
     
     /* Set the device reference for I2C operations */
     maxm86161_set_device(dev);
@@ -728,6 +781,34 @@ int maxm86161_driver_init(const struct device *dev)
     data->last_sample_time = 0;
     
     /* TODO: Add actual hardware initialization here */
+    // int val = maxm86161_i2c_read_from_register(0xFF); // Replace 0x00 with a valid register
+    // printk("MAXM86161: I2C read at boot returned %d\n", val);
+
+    ret = maxm86161_i2c_read_from_register(MAXM86161_REG_PART_ID);
+    if (ret < 0) {
+        printk("MAXM86161: Failed to read part ID, error %d\n", ret);
+        return ret;
+    }
+
+    printk("MAXM86161: Part ID read as %d\n", ret);
+
+    // if (ret != MAXM86161_REG_PART_ID) {
+    //     printk("MAXM86161: Part ID mismatch, expected %d, got %d\n", MAXM86161_REG_PART_ID, ret);
+    //     return -ENODEV;
+    // }
+    // Replaced the code as the expected part ID is 0x36
+    // Code above is BS as it compares the part ID with the register address
+    // which is not correct. The expected part ID is 0x36.
+    if (ret != 0x36) {
+        printk("MAXM86161: Part ID mismatch, expected %d, got %d\n", 0x36, ret);
+        return -ENODEV;
+    }
+
+    ret = maxm86161_init_device(&maxm86161_basic_cfg);
+    if (ret) {
+        printk("MAXM86161: Device config failed: %d\n", ret);
+        return ret;
+    }
     
     data->initialized = true;
     return 0;
