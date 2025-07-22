@@ -2,7 +2,7 @@
 
 config MAXM86161
 	bool "MAXM86161 Driver"
-	default y
+	default n
 	select I2C
 	help
 	  Enable the driver for the Maxim MAXM86161 PPG Sensor
